@@ -20,6 +20,7 @@ from servicex.transformer.kafka_messaging import KafkaMessaging
 from servicex.transformer.object_store_manager import ObjectStoreManager
 from servicex.transformer.xaod_events import XAODEvents
 from servicex.transformer.xaod_transformer import XAODTransformer
+from servicex.transformer.nanoaod_events import NanoAODEvents
 
 default_brokerlist = "servicex-kafka-0.slateci.net:19092, " \
                      "servicex-kafka-1.slateci.net:19092," \
@@ -180,8 +181,9 @@ def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, attr_
 
     scratch_writer = None
 
-    event_iterator = XAODEvents(file_path, attr_name_list)
-    transformer = XAODTransformer(event_iterator)
+    transformer = NanoAODEvents(file_path, attr_name_list)
+
+    print(transformer)
 
     batch_number = 0
     for pa_table in transformer.arrow_table(chunk_size, event_limit):
@@ -327,7 +329,7 @@ if __name__ == "__main__":
     limit = int(args.limit) if args.limit else None
 
     if args.path:
-        print("Transforming a single path: ", args.path)
+        print("Transforming a single path: " + str(args.path))
         write_branches_to_arrow(messaging, args.topic, args.path, "cli", _attr_list,
                                 chunk_size, None, limit, object_store=object_store)
     elif args.dataset:
