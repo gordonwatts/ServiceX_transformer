@@ -33,24 +33,17 @@ import awkward
 
 
 class NanoAODEvents:
-    def __init__(self, file_path, attr_name_list):
+    def __init__(self, file_path, attr_name_list, chunk_size):
         self.file_path = file_path
         self.file_in = uproot.open(file_path)
         self.tree_in = self.file_in['Events']
         self.attr_name_list = attr_name_list
+        self.chunk_size = chunk_size
 
     def get_entry_count(self):
         return self.tree_in.numentries
 
     def iterate(self, event_limit=None):
-        n_entries = self.get_entry_count()
-        if event_limit:
-            n_entries = min(n_entries, event_limit)
-            print("Limiting to the first " + str(n_entries) + " events")
-
-        my_array = []
-        for attrs in self.tree_in.iterate(self.attr_name_list, entrysteps=n_entries):
-            for attr_name in self.attr_name_list:
-                my_array = awkward.toarrow(attrs[attr_name.encode()])
-
-        return my_array
+        for things in self.tree_in.iterate(self.attr_name_list, entrysteps=self.chunk_size):
+            yield things
+            

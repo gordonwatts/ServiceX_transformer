@@ -182,7 +182,7 @@ def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, attr_
 
     scratch_writer = None
 
-    event_iterator = NanoAODEvents(file_path, attr_name_list)
+    event_iterator = NanoAODEvents(file_path, attr_name_list, chunk_size)
     transformer = NanoAODTransformer(event_iterator)
 
     batch_number = 0
