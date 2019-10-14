@@ -17,6 +17,7 @@ import requests
 
 from servicex.servicex_adaptor import ServiceX
 from servicex.transformer.kafka_messaging import KafkaMessaging
+from servicex.transformer.nanoaod_transformer import NanoAODTransformer
 from servicex.transformer.object_store_manager import ObjectStoreManager
 from servicex.transformer.xaod_events import XAODEvents
 from servicex.transformer.xaod_transformer import XAODTransformer
@@ -181,9 +182,8 @@ def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, attr_
 
     scratch_writer = None
 
-    transformer = NanoAODEvents(file_path, attr_name_list)
-
-    print(transformer)
+    event_iterator = NanoAODEvents(file_path, attr_name_list)
+    transformer = NanoAODTransformer(event_iterator)
 
     batch_number = 0
     for pa_table in transformer.arrow_table(chunk_size, event_limit):
