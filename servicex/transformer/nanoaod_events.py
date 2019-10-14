@@ -40,7 +40,7 @@ class NanoAODEvents:
         self.attr_name_list = attr_name_list
 
     def get_entry_count(self):
-        return self.tree.numentries
+        return self.tree_in.numentries
 
     def iterate(self, event_limit=None):
         n_entries = self.get_entry_count()
@@ -49,7 +49,7 @@ class NanoAODEvents:
             print("Limiting to the first " + str(n_entries) + " events")
 
         my_array = []
-        for attrs in tree_in.iterate(self.attr_name_list, entrysteps=n_entries):
+        for attrs in self.tree_in.iterate(self.attr_name_list, entrysteps=n_entries):
             for attr_name in self.attr_name_list:
                 my_array = awkward.toarrow(attrs[attr_name.encode()])
 
