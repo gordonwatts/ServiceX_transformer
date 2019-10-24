@@ -40,7 +40,7 @@ def validate_branches(file_name, branch_names):
 
     for branch_name in branch_names:
         if not branch_name.encode() in set(tree_in.keys()):
-            return False, "No collection with name:" + branch
+            return False, "No collection with name:" + branch_name
 
     return(True, {
         "max-event-size": estimated_size
