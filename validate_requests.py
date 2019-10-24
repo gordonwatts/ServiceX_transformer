@@ -8,14 +8,13 @@ import json
 import sys
 
 import time
-import ROOT
+import uproot
+import awkward
 import requests
 from confluent_kafka import KafkaException, KafkaError
 from confluent_kafka.admin import AdminClient, NewTopic
 import argparse
 import pika
-
-ROOT.gROOT.Macro('$ROOTCOREDIR/scripts/load_packages.C')
 
 # What is the largest message we want to send (in megabytes).
 # Note this must be less than the kafka broker setting if we are using kafka
@@ -34,30 +33,14 @@ parser.add_argument('--avg-bytes', dest="avg_bytes_per_column", action='store',
 
 def validate_branches(file_name, branch_names):
     print("Validating file: " + file_name)
-    # file_in = ROOT.TFile.Open('AOD.11182705._000001.pool.root.1')
-    file_in = ROOT.TFile.Open(file_name)
-    tree_in = ROOT.xAOD.MakeTransientTree(file_in)
+    file_in = uproot.open(file_name)
+    tree_in = file_in['Events']
 
     estimated_size = int(args.avg_bytes_per_column) * len(branch_names)
 
     for branch_name in branch_names:
-        if '.' not in branch_name:
-            print(branch_name + " is not valid collection + attribute")
-            return False, "Not valid collection.attribute"
-
-        branch = branch_name.split('.')[0].strip(' ')
-        attr = branch_name.split('.')[1].strip('()')
-        for i_evt in range(10):
-            tree_in.GetEntry(i_evt)
-            try:
-                particles = getattr(tree_in, branch)
-                if particles.size() >= 1:
-                    if not attr in dir(particles.at(0)):
-                        print(attr + " is not an attribute of " + branch)
-                        return False, attr + " is not an attribute of " + branch
-                    break
-            except Exception:
-                return False, "No collection with name:" + branch
+        if not branch_name.encode() in set(tree_in.keys()):
+            return False, "No collection with name:" + branch_name
 
     return(True, {
         "max-event-size": estimated_size
