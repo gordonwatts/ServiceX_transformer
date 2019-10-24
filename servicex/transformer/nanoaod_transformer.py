@@ -33,7 +33,7 @@ class NanoAODTransformer:
     def __init__(self, event_iterator):
         self.event_iterator = event_iterator
 
-    def arrow_table(self, chunk_size, event_limit=sys.maxint):
+    def arrow_table(self, chunk_size, event_limit=sys.maxsize):
             for object_array in self.event_iterator.iterate(event_limit):
                 print(object_array)
                 yield awkward.toarrow(object_array)

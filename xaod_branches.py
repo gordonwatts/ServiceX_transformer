@@ -5,22 +5,19 @@ import json
 import os
 import sys
 
-# noinspection PyPackageRequirements
-import ROOT
 import argparse
-# Set up ROOT, uproot, and RootCore:
+
 import datetime
 import pika
 import pyarrow as pa
 import pyarrow.parquet as pq
 import requests
+from time import perf_counter
 
 from servicex.servicex_adaptor import ServiceX
 from servicex.transformer.kafka_messaging import KafkaMessaging
 from servicex.transformer.nanoaod_transformer import NanoAODTransformer
 from servicex.transformer.object_store_manager import ObjectStoreManager
-from servicex.transformer.xaod_events import XAODEvents
-from servicex.transformer.xaod_transformer import XAODTransformer
 from servicex.transformer.nanoaod_events import NanoAODEvents
 
 default_brokerlist = "servicex-kafka-0.slateci.net:19092, " \
@@ -45,7 +42,7 @@ default_max_message_size = 14.5
 messaging = None
 
 parser = argparse.ArgumentParser(
-    description='Transform xAOD files into flat n-tuples.')
+    description='Transform Flat N-tuples into slimmed flat n-tuples.')
 
 parser.add_argument("--brokerlist", dest='brokerlist', action='store',
                     default=default_brokerlist,
@@ -96,8 +93,6 @@ parser.add_argument('--rabbit-uri', dest="rabbit_uri", action='store',
 
 parser.add_argument('--request-id', dest='request_id', action='store',
                     default=None, help='Request ID to read from queue')
-
-ROOT.gROOT.Macro('$ROOTCOREDIR/scripts/load_packages.C')
 
 
 # Use a heuristic to guess at an optimum message chunk to fill the
@@ -177,8 +172,7 @@ def put_file_complete(endpoint, file_path, status, num_messages=None,
 def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, attr_name_list,
                             chunk_size, server_endpoint, event_limit=None,
                             object_store=None):
-    sw = ROOT.TStopwatch()
-    sw.Start()
+    tick = perf_counter()
 
     scratch_writer = None
 
@@ -225,16 +219,15 @@ def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, attr_
         object_store.upload_file(args.request_id, file_path.replace('/', ':'), "/tmp/out")
         os.remove("/tmp/out")
 
-    ROOT.xAOD.ClearTransientTrees()
 
     if server_endpoint:
         post_status_update(server_endpoint, "File " + file_path + " complete")
 
-    sw.Stop()
-    print("Real time: " + str(round(sw.RealTime() / 60.0, 2)) + " minutes")
-    print("CPU time:  " + str(round(sw.CpuTime() / 60.0, 2)) + " minutes")
+
+    tock = perf_counter()
+    print("Real time: " + str(round(tock - tick / 60.0, 2)) + " minutes")
     put_file_complete(server_endpoint, file_path, "success",
-                      batch_number, sw.RealTime())
+                      batch_number, tock - tick)
 
 
 def transform_dataset(dataset, messaging, topic_name, servicex_id, attr_list, chunk_size,
@@ -242,7 +235,7 @@ def transform_dataset(dataset, messaging, topic_name, servicex_id, attr_list, ch
     with open(dataset, 'r') as f:
         datasets = json.load(f)
         for rec in datasets:
-            print "Transforming ", rec[u'file_path'], rec[u'file_events']
+            print("Transforming ", rec[u'file_path'], rec[u'file_events'])
             write_branches_to_arrow(messaging, topic_name, rec[u'file_path'], servicex_id,
                                     attr_list, chunk_size, None, limit)
 
