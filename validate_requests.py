@@ -41,19 +41,26 @@ parser.add_argument("--attrs", dest='attr_names', action='store',
                     help='List of attributes to extract')
 
 
-def validate_branches(file_name, branch_names):
+def parse_column_name(attr):
+    attr_parts = attr.split('.')
+    tree_name = attr_parts[0]
+    branch_name = '.'.join(attr_parts[1:])
+    return tree_name, branch_name
+
+
+def validate_branches(file_name, column_names):
     print("Validating file: " + file_name)
     file_in = uproot.open(file_name)
-    if 'Events' in file_in:
-        tree_in = file_in['Events']
-    else:
-        tree_in = file_in
 
-    estimated_size = int(args.avg_bytes_per_column) * len(branch_names)
+    estimated_size = int(args.avg_bytes_per_column) * len(column_names)
 
-    for branch_name in branch_names:
-        if not branch_name.encode() in set(tree_in.keys()):
-            return False, "No collection with name:" + branch_name
+    for column in column_names:
+        (tree_name, branch_name) = parse_column_name(column)
+        print(file_in.keys())
+        if tree_name.encode() not in set(file_in.keys()):
+            return False, "Could not find tree {} in file".format(tree_name)
+        if not branch_name in file_in[tree_name].keys():
+            return False, "No branch with name: {} in {} Tree".format(branch_name, tree_name)
 
     return(True, {
         "max-event-size": estimated_size
@@ -103,8 +110,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.path:
+        attrs = args.attr_names.split(",")
+        print("----->",attrs)
         # checks the file
-        (valid, info) = validate_branches(args.path, args.attr_names)
+        (valid, info) = validate_branches(args.path, attrs)
         print(valid, info)
         sys.exit(0)
 
