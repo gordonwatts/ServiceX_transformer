@@ -32,18 +32,43 @@ import uproot
 import awkward
 
 
+def _parse_column_name(attr):
+    attr_parts = attr.split('.')
+    tree_name = attr_parts[0]
+    branch_name = '.'.join(attr_parts[1:])
+    return tree_name, branch_name
+
 class NanoAODEvents:
+
     def __init__(self, file_path, attr_name_list, chunk_size):
+
         self.file_path = file_path
         self.file_in = uproot.open(file_path)
-        self.tree_in = self.file_in['Events']
+        self.tree_map = {}
+
+        for col in attr_name_list:
+            (tree_name, branch_name) = _parse_column_name(col)
+            if tree_name not in self.tree_map:
+                self.tree_map[tree_name] = [branch_name]
+            else:
+                self.tree_map[tree_name].append(branch_name)
+
         self.attr_name_list = attr_name_list
+        self.sample_tree = list(self.tree_map.keys())[0]
         self.chunk_size = chunk_size
 
     def get_entry_count(self):
-        return self.tree_in.numentries
+        sample_tree = list(self.tree_map.keys())[0]
+        return self.file_in[sample_tree].numentries
 
     def iterate(self, event_limit=None):
-        for things in self.tree_in.iterate(self.attr_name_list, entrysteps=self.chunk_size):
-            yield things
-            
+        iterators = []
+        for tree in self.tree_map.keys():
+            iterators.append(self.file_in[tree].iterate(self.tree_map[tree],
+                                                        entrysteps=self.chunk_size))
+        for result in iterators[0]:
+            for remaining in iterators[1:]:
+                sub_result = remaining.next()
+                result.update(sub_result)
+            print result
+            yield result

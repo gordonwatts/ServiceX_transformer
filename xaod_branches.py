@@ -23,7 +23,7 @@ default_brokerlist = "servicex-kafka-0.slateci.net:19092, " \
                      "servicex-kafka-1.slateci.net:19092," \
                      "servicex-kafka-2.slateci.net:19092"
 
-default_attr_names = "Electron_pt,Electron_eta,Muon_phi"
+default_attr_names = "Events.Electron_pt,Events.Electron_eta,Muon_phi"
 
 default_servicex_endpoint = 'https://servicex.slateci.net'
 
