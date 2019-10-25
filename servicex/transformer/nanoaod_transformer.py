@@ -35,4 +35,7 @@ class NanoAODTransformer:
 
     def arrow_table(self, chunk_size, event_limit=sys.maxsize):
             for object_array in self.event_iterator.iterate(event_limit):
-                yield awkward.toarrow(awkward.Table(object_array))
+                unicode_array = {}
+                for key in object_array.keys():
+                    unicode_array[key.decode('UTF8')] = object_array[key]
+                yield awkward.toarrow(awkward.Table(unicode_array))

@@ -20,6 +20,8 @@ import pika
 # Note this must be less than the kafka broker setting if we are using kafka
 default_max_message_size = 14.5
 
+default_attr_names = "Electron_pt,Electron_eta,Muon_phi"
+
 parser = argparse.ArgumentParser(
     description='Validate a request and create kafka topic.')
 
@@ -30,11 +32,22 @@ parser.add_argument('--avg-bytes', dest="avg_bytes_per_column", action='store',
                     help='Average number of bytes per column per event',
                     default='40')
 
+parser.add_argument("--path", dest='path', action='store',
+                    default=None,
+                    help='Path to single Root file to transform')
+
+parser.add_argument("--attrs", dest='attr_names', action='store',
+                    default=default_attr_names,
+                    help='List of attributes to extract')
+
 
 def validate_branches(file_name, branch_names):
     print("Validating file: " + file_name)
     file_in = uproot.open(file_name)
-    tree_in = file_in['Events']
+    if 'Events' in file_in:
+        tree_in = file_in['Events']
+    else:
+        tree_in = file_in
 
     estimated_size = int(args.avg_bytes_per_column) * len(branch_names)
 
@@ -88,6 +101,13 @@ def callback(channel, method, properties, body):
 
 if __name__ == "__main__":
     args = parser.parse_args()
+
+    if args.path:
+        # checks the file
+        (valid, info) = validate_branches(args.path, args.attr_names)
+        print(valid, info)
+        sys.exit(0)
+
     rabbitmq = pika.BlockingConnection(
         pika.URLParameters(args.rabbit_uri)
     )

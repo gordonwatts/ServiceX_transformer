@@ -7,12 +7,11 @@ import sys
 
 import argparse
 
-import datetime
+import time
 import pika
 import pyarrow as pa
 import pyarrow.parquet as pq
 import requests
-from time import perf_counter
 
 from servicex.servicex_adaptor import ServiceX
 from servicex.transformer.kafka_messaging import KafkaMessaging
@@ -24,10 +23,7 @@ default_brokerlist = "servicex-kafka-0.slateci.net:19092, " \
                      "servicex-kafka-1.slateci.net:19092," \
                      "servicex-kafka-2.slateci.net:19092"
 
-default_attr_names = "Electrons.pt(), " \
-                     "Electrons.eta(), " \
-                     "Electrons.phi(), " \
-                     "Electrons.e()"
+default_attr_names = "Electron_pt,Electron_eta,Muon_phi"
 
 default_servicex_endpoint = 'https://servicex.slateci.net'
 
@@ -172,7 +168,7 @@ def put_file_complete(endpoint, file_path, status, num_messages=None,
 def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, attr_name_list,
                             chunk_size, server_endpoint, event_limit=None,
                             object_store=None):
-    tick = perf_counter()
+    tick = time.time()
 
     scratch_writer = None
 
@@ -224,7 +220,7 @@ def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, attr_
         post_status_update(server_endpoint, "File " + file_path + " complete")
 
 
-    tock = perf_counter()
+    tock = time.time()
     print("Real time: " + str(round(tock - tick / 60.0, 2)) + " minutes")
     put_file_complete(server_endpoint, file_path, "success",
                       batch_number, tock - tick)
