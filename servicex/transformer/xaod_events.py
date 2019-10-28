@@ -30,11 +30,12 @@ import ROOT
 
 
 class XAODEvents:
-    def __init__(self, file_path, attr_name_list):
+    def __init__(self, file_path, attr_name_list, event_start):
         self.file_path = file_path
         self.file_in = ROOT.TFile.Open(file_path)
         self.tree = ROOT.xAOD.MakeTransientTree(self.file_in)
         self.attr_name_list = attr_name_list
+        self.event_start = event_start
 
     def _create_branch_dict(self):
         branches = {}
@@ -67,7 +68,7 @@ class XAODEvents:
             n_entries = min(n_entries, event_limit)
             print("Limiting to the first " + str(n_entries) + " events")
 
-        for j_entry in range(n_entries):
+        for j_entry in range(self.event_start, n_entries):
             self.tree.GetEntry(j_entry)
             if j_entry % 1000 == 0:
                 print("Processing run #" + str(self.tree.EventInfo.runNumber())

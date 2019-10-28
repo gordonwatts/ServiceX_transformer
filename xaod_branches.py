@@ -40,6 +40,8 @@ default_max_message_size = 14.5
 
 messaging = None
 
+n_events_transformed = 0
+
 parser = argparse.ArgumentParser(
     description='Transform xAOD files into flat n-tuples.')
 
@@ -140,7 +142,7 @@ def put_file_complete(endpoint, file_path, file_id, status,
         requests.put(endpoint+"/file-complete", json=doc)
 
 
-def write_branches_to_arrow(messaging, topic_name, file_path, file_id, attr_name_list,
+def write_branches_to_arrow(messaging, topic_name, file_path, file_id, attr_name_list, event_start,
                             chunk_size, server_endpoint, event_limit=None,
                             object_store=None):
     sw = ROOT.TStopwatch()
@@ -148,11 +150,11 @@ def write_branches_to_arrow(messaging, topic_name, file_path, file_id, attr_name
 
     scratch_writer = None
 
-    event_iterator = XAODEvents(file_path, attr_name_list)
+    event_iterator = XAODEvents(file_path, attr_name_list, event_start)
     transformer = XAODTransformer(event_iterator)
 
     batch_number = 0
-    total_events = 0
+    total_events = event_start
     total_bytes = 0
     for pa_table in transformer.arrow_table(chunk_size, event_limit):
         if object_store:
@@ -214,7 +216,7 @@ def transform_dataset(dataset, messaging, topic_name, servicex_id, attr_list, ch
         for rec in datasets:
             print "Transforming ", rec[u'file_path'], rec[u'file_events']
             write_branches_to_arrow(messaging, topic_name, rec[u'file_path'], servicex_id,
-                                    attr_list, chunk_size, None, limit)
+                                    attr_list, n_events_transformed, chunk_size, None, limit)
 
 
 # noinspection PyUnusedLocal
@@ -228,20 +230,31 @@ def callback(channel, method, properties, body):
                        transform_request['columns'].split(",")))
 
     print(_file_path)
-    try:
-        write_branches_to_arrow(messaging=messaging, topic_name=_request_id,
-                                file_path=_file_path, file_id=_file_id,
-                                attr_name_list=columns,
-                                chunk_size=chunk_size, server_endpoint=_server_endpoint,
-                                object_store=object_store)
-    except Exception as error:
-        transform_request['error'] = str(error)
-        channel.basic_publish(exchange='transformation_failures',
-                              routing_key=_request_id + '_errors',
-                              body=json.dumps(transform_request))
-        put_file_complete(_server_endpoint, _file_path, "failure", 0, 0.0)
-    finally:
-        channel.basic_ack(delivery_tag=method.delivery_tag)
+    done = False
+    retries = 0
+    remove_name = ''
+    while not done:
+        try:
+            write_branches_to_arrow(messaging=messaging, topic_name=_request_id,
+                                    file_path=_file_path.strip(remove_name),
+                                    file_id=_file_id,
+                                    attr_name_list=columns,
+                                    event_start=n_events_transformed,
+                                    chunk_size=chunk_size, server_endpoint=_server_endpoint,
+                                    object_store=object_store)
+            done = True
+        except Exception as error:
+            retries += 1
+            if retries <= 2:
+                remove_name = 'root://xcache.mwt2.org:1094//'
+            else:
+                transform_request['error'] = str(error)
+                channel.basic_publish(exchange='transformation_failures',
+                                      routing_key=_request_id + '_errors',
+                                      body=json.dumps(transform_request))
+                put_file_complete(_server_endpoint, _file_path, "failure", 0, 0.0)
+        finally:
+            channel.basic_ack(delivery_tag=method.delivery_tag)
 
 
 if __name__ == "__main__":
@@ -299,7 +312,8 @@ if __name__ == "__main__":
     if args.path:
         print("Transforming a single path: ", args.path)
         write_branches_to_arrow(messaging, args.topic, args.path, "cli", _attr_list,
-                                chunk_size, None, limit, object_store=object_store)
+                                n_events_transformed, chunk_size, None, limit,
+                                object_store=object_store)
     elif args.dataset:
         print("Transforming files from saved dataset ", args.dataset)
         transform_dataset(args.dataset, messaging, args.topic, "cli", _attr_list,
