@@ -3,6 +3,8 @@
 # this code gets requests in state: Created, Validates request on one file
 # if request valid (all branches exist) it sets request state to Defined
 # if not it sets state to Failed, deletes all the paths belonging to that request.
+import os
+
 import datetime
 import json
 import sys
@@ -36,6 +38,10 @@ parser.add_argument("--path", dest='path', action='store',
                     default=None,
                     help='Path to single Root file to transform')
 
+parser.add_argument("--tree", dest='tree', action='store',
+                    default="Events",
+                    help='Tree from which columns will be inspected')
+
 parser.add_argument("--attrs", dest='attr_names', action='store',
                     default=default_attr_names,
                     help='List of attributes to extract')
@@ -48,19 +54,23 @@ def parse_column_name(attr):
     return tree_name, branch_name
 
 
-def validate_branches(file_name, column_names):
-    print("Validating file: " + file_name)
+def validate_branches(file_name, tree_name, column_names):
+    print("Validating file: " + file_name + " inside tree " + tree_name)
     file_in = uproot.open(file_name)
 
     estimated_size = int(args.avg_bytes_per_column) * len(column_names)
 
-    for column in column_names:
-        (tree_name, branch_name) = parse_column_name(column)
-        print(file_in.keys())
-        if tree_name.encode() not in set(file_in.keys()):
-            return False, "Could not find tree {} in file".format(tree_name)
-        if not branch_name in file_in[tree_name].keys():
-            return False, "No branch with name: {} in {} Tree".format(branch_name, tree_name)
+    # if tree_name not in file_in.keys(cycle='None'):
+    #     return False, "Could not find tree {} in file".format(tree_name)
+    try:
+        tree = file_in[tree_name]
+        print(tree.keys())
+        for column in column_names:
+            if column not in tree.keys():
+                return False, "No branch with name: {} in {} Tree".\
+                    format(column, tree_name)
+    except KeyError as key_error:
+        return False, "Could not find tree {} in file".format(key_error)
 
     return(True, {
         "max-event-size": estimated_size
@@ -87,13 +97,18 @@ def callback(channel, method, properties, body):
     columns = list(map(lambda b: b.strip(),
                        validation_request['columns'].split(",")))
 
+    if 'tree-name' in validation_request:
+        tree_name = validation_request['tree-name']
+    else:
+        tree_name = None
+
     service_endpoint = validation_request[u'service-endpoint']
     post_status_update(service_endpoint,
                        "Validation Request received")
 
     # checks the file
     (valid, info) = validate_branches(
-        validation_request[u'file-path'], columns
+        validation_request[u'file-path'], tree_name, columns
     )
 
     if valid:
@@ -110,10 +125,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.path:
+        tree_name = args.tree
         attrs = args.attr_names.split(",")
-        print("----->",attrs)
         # checks the file
-        (valid, info) = validate_branches(args.path, attrs)
+        (valid, info) = validate_branches(args.path, tree_name, attrs)
         print(valid, info)
         sys.exit(0)
 

@@ -29,7 +29,6 @@
 # import ROOT
 # import numpy as np
 import uproot
-import awkward
 
 
 def _parse_column_name(attr):
@@ -38,37 +37,21 @@ def _parse_column_name(attr):
     branch_name = '.'.join(attr_parts[1:])
     return tree_name, branch_name
 
+
 class NanoAODEvents:
 
-    def __init__(self, file_path, attr_name_list, chunk_size):
+    def __init__(self, file_path, tree_name, attr_name_list, chunk_size):
 
         self.file_path = file_path
         self.file_in = uproot.open(file_path)
-        self.tree_map = {}
-
-        for col in attr_name_list:
-            (tree_name, branch_name) = _parse_column_name(col)
-            if tree_name not in self.tree_map:
-                self.tree_map[tree_name] = [branch_name]
-            else:
-                self.tree_map[tree_name].append(branch_name)
+        self.tree = self.file_in[tree_name]
 
         self.attr_name_list = attr_name_list
-        self.sample_tree = list(self.tree_map.keys())[0]
         self.chunk_size = chunk_size
 
     def get_entry_count(self):
-        sample_tree = list(self.tree_map.keys())[0]
-        return self.file_in[sample_tree].numentries
+        return self.tree.numentries
 
     def iterate(self, event_limit=None):
-        iterators = []
-        for tree in self.tree_map.keys():
-            iterators.append(self.file_in[tree].iterate(self.tree_map[tree],
-                                                        entrysteps=self.chunk_size))
-        for result in iterators[0]:
-            for remaining in iterators[1:]:
-                sub_result = remaining.next()
-                result.update(sub_result)
-            print result
-            yield result
+        for things in self.tree.iterate(self.attr_name_list, entrysteps=self.chunk_size):
+            yield things

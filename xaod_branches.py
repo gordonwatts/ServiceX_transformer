@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import division
 
+import datetime
 import json
 import os
 import sys
@@ -51,6 +52,10 @@ parser.add_argument("--topic", dest='topic', action='store',
 parser.add_argument("--chunks", dest='chunks', action='store',
                     default=None,
                     help='Arrow Buffer Chunksize')
+
+parser.add_argument("--tree", dest='tree', action='store',
+                    default="Events",
+                    help='Tree from which columns will be inspected')
 
 parser.add_argument("--attrs", dest='attr_names', action='store',
                     default=default_attr_names,
@@ -165,14 +170,14 @@ def put_file_complete(endpoint, file_path, status, num_messages=None,
         })
 
 
-def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, attr_name_list,
-                            chunk_size, server_endpoint, event_limit=None,
+def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, tree_name,
+                            attr_name_list, chunk_size, server_endpoint, event_limit=None,
                             object_store=None):
     tick = time.time()
 
     scratch_writer = None
 
-    event_iterator = NanoAODEvents(file_path, attr_name_list, chunk_size)
+    event_iterator = NanoAODEvents(file_path, tree_name, attr_name_list, chunk_size)
     transformer = NanoAODTransformer(event_iterator)
 
     batch_number = 0
@@ -215,10 +220,8 @@ def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, attr_
         object_store.upload_file(args.request_id, file_path.replace('/', ':'), "/tmp/out")
         os.remove("/tmp/out")
 
-
     if server_endpoint:
         post_status_update(server_endpoint, "File " + file_path + " complete")
-
 
     tock = time.time()
     print("Real time: " + str(round(tock - tick / 60.0, 2)) + " minutes")
@@ -240,6 +243,7 @@ def transform_dataset(dataset, messaging, topic_name, servicex_id, attr_list, ch
 def callback(channel, method, properties, body):
     transform_request = json.loads(body)
     _request_id = transform_request['request-id']
+    _tree_name = transform_request['tree-name']
     _file_path = transform_request['file-path']
     _server_endpoint = transform_request['service-endpoint']
     _id = 1
@@ -249,7 +253,8 @@ def callback(channel, method, properties, body):
     print(_file_path)
     try:
         write_branches_to_arrow(messaging=messaging, topic_name=_request_id,
-                                file_path=_file_path, servicex_id=_id, attr_name_list=columns,
+                                file_path=_file_path, servicex_id=_id,
+                                attr_name_list=columns, tree_name=_tree_name,
                                 chunk_size=chunk_size, server_endpoint=_server_endpoint,
                                 object_store=object_store)
     except Exception as error:
@@ -319,9 +324,10 @@ if __name__ == "__main__":
 
     if args.path:
         print("Transforming a single path: " + str(args.path))
-        write_branches_to_arrow(messaging, args.topic, args.path, "cli", _attr_list,
-                                chunk_size, None, limit, object_store=object_store)
+        write_branches_to_arrow(messaging, args.topic, args.path, "cli", args.tree,
+                                _attr_list, chunk_size, None, limit,
+                                object_store=object_store)
     elif args.dataset:
         print("Transforming files from saved dataset ", args.dataset)
-        transform_dataset(args.dataset, messaging, args.topic, "cli", _attr_list,
-                          chunk_size, limit)
+        transform_dataset(args.dataset, messaging, args.topic, "cli", args.tree,
+                          _attr_list, chunk_size, limit)
