@@ -61,10 +61,6 @@ parser.add_argument("--attrs", dest='attr_names', action='store',
                     default=default_attr_names,
                     help='List of attributes to extract')
 
-parser.add_argument("--servicex", dest='servicex_endpoint', action='store',
-                    default=default_servicex_endpoint,
-                    help='Endpoint for servicex')
-
 parser.add_argument("--path", dest='path', action='store',
                     default=None,
                     help='Path to single Root file to transform')
@@ -152,25 +148,26 @@ def post_status_update(endpoint, status_msg):
     })
 
 
-def put_file_complete(endpoint, file_path, status, num_messages=None,
-                      total_time=None):
+def put_file_complete(endpoint, file_path, file_id, status,
+                      num_messages=None, total_time=None, total_events=None,
+                      total_bytes=None):
+    avg_rate = 0 if not total_time else total_events/total_time
     doc = {
         "file-path": file_path,
+        "file-id": file_id,
         "status": status,
         "num-messages": num_messages,
-        "total-time": total_time
+        "total-time": total_time,
+        "total-events": total_events,
+        "total-bytes": total_bytes,
+        "avg-rate": avg_rate
     }
     print("------< ", doc)
     if endpoint:
-        requests.put(endpoint+"/file-complete", json={
-            "file-path": file_path,
-            "status": status,
-            "num-messages": num_messages,
-            "total-time": total_time
-        })
+        requests.put(endpoint+"/file-complete", json=doc)
 
 
-def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, tree_name,
+def write_branches_to_arrow(messaging, topic_name, file_path, file_id, tree_name,
                             attr_name_list, chunk_size, server_endpoint, event_limit=None,
                             object_store=None):
     tick = time.time()
@@ -181,12 +178,15 @@ def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, tree_
     transformer = NanoAODTransformer(event_iterator)
 
     batch_number = 0
+    total_events = 0
+    total_bytes = 0
     for pa_table in transformer.arrow_table(chunk_size, event_limit):
         if object_store:
             if not scratch_writer:
                 scratch_writer = _open_scratch_file(args.result_format, pa_table)
             _append_table_to_scratch(args.result_format, scratch_writer, pa_table)
 
+        total_events = total_events + pa_table.num_rows
         batches = pa_table.to_batches(chunksize=chunk_size)
 
         for batch in batches:
@@ -201,6 +201,8 @@ def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, tree_
                     topic_name,
                     key,
                     sink.getvalue())
+
+                total_bytes = total_bytes + len(sink.getvalue().to_pybytes())
 
                 avg_cell_size = len(sink.getvalue().to_pybytes()) / len(
                     attr_name_list) / batch.num_rows
@@ -225,8 +227,9 @@ def write_branches_to_arrow(messaging, topic_name, file_path, servicex_id, tree_
 
     tock = time.time()
     print("Real time: " + str(round(tock - tick / 60.0, 2)) + " minutes")
-    put_file_complete(server_endpoint, file_path, "success",
-                      batch_number, tock - tick)
+    put_file_complete(server_endpoint, file_path, file_id, "success",
+                      num_messages=batch_number, total_time=round(tock - tick / 60.0, 2),
+                      total_events=total_events, total_bytes=total_bytes)
 
 
 def transform_dataset(dataset, messaging, topic_name, servicex_id, attr_list, chunk_size,
@@ -245,6 +248,7 @@ def callback(channel, method, properties, body):
     _request_id = transform_request['request-id']
     _tree_name = transform_request['tree-name']
     _file_path = transform_request['file-path']
+    _file_id = transform_request['file-id']
     _server_endpoint = transform_request['service-endpoint']
     _id = 1
     columns = list(map(lambda b: b.strip(),
@@ -253,7 +257,7 @@ def callback(channel, method, properties, body):
     print(_file_path)
     try:
         write_branches_to_arrow(messaging=messaging, topic_name=_request_id,
-                                file_path=_file_path, servicex_id=_id,
+                                file_path=_file_path, file_id=_file_id,
                                 attr_name_list=columns, tree_name=_tree_name,
                                 chunk_size=chunk_size, server_endpoint=_server_endpoint,
                                 object_store=object_store)
@@ -262,7 +266,8 @@ def callback(channel, method, properties, body):
         channel.basic_publish(exchange='transformation_failures',
                               routing_key=_request_id + '_errors',
                               body=json.dumps(transform_request))
-        put_file_complete(_server_endpoint, _file_path, "failure", 0, 0.0)
+        put_file_complete(_server_endpoint, _file_path, _file_id,
+                          "failure", 0, 0.0)
     finally:
         channel.basic_ack(delivery_tag=method.delivery_tag)
 
@@ -317,8 +322,6 @@ if __name__ == "__main__":
     print("Atlas xAOD Transformer")
     print(_attr_list)
     print("Chunk size ", chunk_size)
-
-    servicex = ServiceX(args.servicex_endpoint)
 
     limit = int(args.limit) if args.limit else None
 
