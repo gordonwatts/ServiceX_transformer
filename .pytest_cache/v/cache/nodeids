@@ -1,0 +1,5 @@
+[
+  "servicex/transformer/tests/test_object_store_manager.py::TestObjectStoreManager::test_init",
+  "servicex/transformer/tests/test_object_store_manager.py::TestObjectStoreManager::test_upload_file",
+  "servicex/transformer/tests/test_xaod_transformer.py::TestXAODTransformer::test_arrow_table"
+]
