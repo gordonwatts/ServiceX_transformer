@@ -1,16 +1,10 @@
-# ServiceX_transformer Repo for input-output transformation code for ServiceX
-
-[![Build Status](https://travis-ci.org/ssl-hep/ServiceX_transformer.svg?branch=pytest)](https://travis-ci.org/ssl-hep/ServiceX_transformer)
-[![codecov](https://codecov.io/gh/ssl-hep/ServiceX_transformer/branch/master/graph/badge.svg)](https://codecov.io/gh/ssl-hep/ServiceX_transformer)
-
+# ServiceX data transformer that starts with an ATLAS xAOD file and writes out ROOT files.
 
 Allows user to access an xAOD-formatted TTree in a ROOT file via a standalone
 ATLAS analysis release. This is based a Docker image found here:
-    https://hub.docker.com/r/atlas/analysisbase
+    XXX
     
-The transformer accepts a list of columns (Root Branches) to extract from the 
-file along with Root files. It extracts the data into awkward arrays and 
-publishes arrow buffers to a backend messaging system.
+The transformer accepts files mounted at location /code.
 
 # How to Build
 Build the docker image as:
