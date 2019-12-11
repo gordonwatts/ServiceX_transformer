@@ -6,6 +6,8 @@ ATLAS analysis release. This is based a Docker image found here:
     
 The transformer accepts files mounted at location /code.
 
+This project has been moved here: https://github.com/ssl-hep/ServiceX_xAOD_CPP_transformer/issues/5
+
 # How to Build
 Build the docker image as:
 ```bash
